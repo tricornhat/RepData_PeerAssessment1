@@ -5,21 +5,89 @@ output:
     keep_md: true
 ---
 
+## Import libraries
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(stringr)
+```
 
 ## Loading and preprocessing the data
-
+```{r echo=TRUE}
+# Read csv file and add factor for weekday/weekend. Convert steps to numeric.
+DAT.FULL <- read.csv("activity.csv", stringsAsFactors = FALSE) %>%
+        mutate(day_type = as.factor(ifelse(day(date) < 6, "weekday", "weekend")),
+               steps = as.numeric(steps))
+# Make a copy with NA values removed
+DAT <- na.omit(DAT.FULL)
+```
 
 
 ## What is mean total number of steps taken per day?
+**Histogram of total number of step taken per day**
+```{r echo=TRUE}
+steps_per_day = DAT %>% group_by(date) %>% summarize(Total.Steps = sum(steps), Median=median(steps), Mean=mean(steps))
 
+ggplot(data = steps_per_day, aes(x=Total.Steps)) + geom_histogram(bins=50) + scale_y_discrete("Number of Days")
+```
 
+**Total, median, and mean steps taken per day**
+```{r echo=TRUE}
+print(tbl_df(steps_per_day), n=100)
+```
 
 ## What is the average daily activity pattern?
+**Average steps by Interval**
+```{r echo=TRUE}
+plot_dat <- DAT %>% group_by(interval) %>% summarize(Avg.steps=mean(steps))
+ggplot(plot_dat, aes(x=interval, y=Avg.steps)) + geom_line()
+```
+**Highest interval**
+```{r echo=TRUE}
+plot_dat %>% arrange(desc(Avg.steps)) %>% head(n=1)
+```
 
+## Inputing missing values
+**Number of missing values**
+```{r echo=TRUE}
+sum(is.na(DAT.FULL))
+```
 
+**Fill in missing values**
+```{r echo=TRUE}
+# Compute average steps for the given interval, ignoring NA values
+avg.steps <- function(myInterval) { 
+        mean(na.omit(filter(DAT.FULL, interval==myInterval)$steps))
+}
+# Fill in NA values with average value
+DAT.ENRICHED <- DAT.FULL %>% mutate(steps = ifelse(is.na(steps), avg.steps(interval), steps))
+```
 
-## Imputing missing values
+**Histogram of total number of step taken per day**
+```{r echo=TRUE}
+steps_per_day = DAT.ENRICHED %>% group_by(date) %>% summarize(Total.Steps = sum(steps), Median=median(steps), Mean=mean(steps))
 
+ggplot(data = steps_per_day, aes(x=Total.Steps)) + geom_histogram(bins=50) + scale_y_discrete("Number of Days")
+```
 
+**Total, median, and mean steps taken per day**
+```{r echo=TRUE}
+print(tbl_df(steps_per_day), n=100)
+```
+
+### Comparison of enriched data set to unenriched
+**Q:** Do these values differ from the estimates from the first part of the assignment?
+
+**A:** Yes, the histogram has changed, and several days have different median and mean values.
+
+**Q:** What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+**A:** In general the number of total daily steps increases on days where steps values were NA.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+**Comparison of weekday vs weekend**
+```{r echo=TRUE}
+plot_dat <- DAT %>% group_by(interval, day_type) %>% summarize(Avg.steps=mean(steps))
+ggplot(plot_dat, aes(x=interval, y=Avg.steps)) + geom_line() + facet_grid(day_type ~ .)
+```
